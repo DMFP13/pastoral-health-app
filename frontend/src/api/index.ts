@@ -24,6 +24,19 @@ async function fetchJSON<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
+/** Fetch with localStorage fallback — returns cached data when offline. */
+async function fetchWithFallback<T>(cacheKey: string, path: string, maxAgeMs = 86_400_000): Promise<T> {
+  try {
+    const data = await fetchJSON<T>(path);
+    cacheSet(cacheKey, data);
+    return data;
+  } catch (err) {
+    const cached = cacheGet<T>(cacheKey, maxAgeMs);
+    if (cached !== null) return cached;
+    throw err;
+  }
+}
+
 function qs(params: Record<string, string | undefined>): string {
   const p = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
@@ -80,8 +93,10 @@ export const api = {
   },
 
   animals: {
-    list: (params?: { country?: string; species?: string; search?: string }): Promise<Animal[]> =>
-      fetchJSON<Animal[]>(`/animals/${qs(params || {})}`),
+    list: (params?: { country?: string; species?: string; search?: string }): Promise<Animal[]> => {
+      const key = `animals_${JSON.stringify(params || {})}`;
+      return fetchWithFallback<Animal[]>(key, `/animals/${qs(params || {})}`, 300_000);
+    },
     get: (id: number): Promise<Animal> =>
       fetchJSON<Animal>(`/animals/${id}`),
     create: (data: Omit<Animal, 'id' | 'created_at' | 'events'>): Promise<Animal> =>
@@ -159,7 +174,8 @@ export const api = {
         village: params?.village,
         limit: params?.limit?.toString(),
       };
-      return fetchJSON<CommunityPost[]>(`/posts/feed${qs(p)}`);
+      const key = `posts_feed_${JSON.stringify(p)}`;
+      return fetchWithFallback<CommunityPost[]>(key, `/posts/feed${qs(p)}`, 120_000); // 2 min cache
     },
     get: (id: number): Promise<CommunityPost> =>
       fetchJSON<CommunityPost>(`/posts/${id}`),

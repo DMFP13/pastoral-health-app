@@ -195,6 +195,7 @@ export default function App() {
             onOpenPost={() => navigate('community')}
             onVets={() => { navigate('more'); setMoreScreen('vets'); }}
             onSuppliers={() => { navigate('more'); setMoreScreen('suppliers'); }}
+            onAnimals={() => navigate('animals')}
             onCheck={() => navigate('check')}
             onMore={() => navigate('more')}
             onEditLocation={() => setLocation(null)}

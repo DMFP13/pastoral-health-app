@@ -81,27 +81,61 @@ export function VetFinder({ location }: Props) {
           )}
         </div>
       ) : (
-        vets.map(v => (
-          <div key={v.vet_id} className="vet-card">
-            <div className="vet-avatar"><Stethoscope size={20} /></div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="vet-name">{v.name}</div>
-              <div className="vet-loc" style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                <MapPin size={10} />
-                {v.location}{v.state ? `, ${v.state}` : ''} · {v.country}
+        <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {vets.map(v => (
+            <div key={v.vet_id} style={{
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--r-xl)',
+              overflow: 'hidden',
+              boxShadow: 'var(--sh-sm)',
+            }}>
+              {/* Info row */}
+              <div style={{ padding: '14px 14px 12px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                <div style={{
+                  width: 44, height: 44, borderRadius: '50%',
+                  background: 'var(--brand-tint)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0, color: 'var(--brand)',
+                }}>
+                  <Stethoscope size={20} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                    <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)' }}>{v.name}</div>
+                    <span className={`badge ${v.available === 'yes' ? 'badge-green' : 'badge-gray'}`} style={{ fontSize: 10 }}>
+                      {v.available === 'yes' ? 'Available' : 'Busy'}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 3, marginBottom: 3 }}>
+                    <MapPin size={10} />
+                    {v.location}{v.state ? `, ${v.state}` : ''}
+                  </div>
+                  {v.specialization && (
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{v.specialization}</div>
+                  )}
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>{v.phone}</div>
+                </div>
               </div>
-              {v.specialization && <div className="vet-spec">{v.specialization}</div>}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-              <span className={`badge ${v.available === 'yes' ? 'badge-green' : 'badge-gray'}`}>
-                {v.available === 'yes' ? 'Available' : 'Busy'}
-              </span>
-              <a href={`tel:${v.phone}`} className="vet-call-btn">
-                <Phone size={13} /> Call
+              {/* Full-width call button */}
+              <a
+                href={`tel:${v.phone}`}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  background: 'var(--brand)',
+                  color: 'white',
+                  padding: '13px 0',
+                  fontWeight: 700,
+                  fontSize: 15,
+                  textDecoration: 'none',
+                  borderTop: '1px solid var(--brand-dark)',
+                }}
+              >
+                <Phone size={16} /> Call {v.name.split(' ').pop()}
               </a>
             </div>
-          </div>
-        ))
+          ))}
+        </div>
       )}
     </div>
   );

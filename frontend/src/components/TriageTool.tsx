@@ -295,6 +295,8 @@ export function TriageTool({ onLogEvent, onBack }: Props) {
     const cfg         = RISK_CONFIG[result.risk_level] ?? RISK_CONFIG.low;
     const RiskIcon    = cfg.Icon;
     const speciesObj  = SPECIES.find(s => s.value === input.species);
+    const isUrgent    = result.risk_level === 'emergency' || result.risk_level === 'high';
+    const firstVet    = result.suggested_vets[0];
 
     const handleLog = () => {
       const conditions = result.likely_conditions.map(c => c.condition).join(', ');
@@ -309,6 +311,31 @@ export function TriageTool({ onLogEvent, onBack }: Props) {
 
     return (
       <div style={{ paddingBottom: 24 }}>
+        {/* Sticky "Call Vet Now" for urgent results */}
+        {isUrgent && firstVet && (
+          <div style={{
+            position: 'sticky', top: 0, zIndex: 40,
+            background: cfg.bg,
+            padding: '12px 16px',
+            display: 'flex', alignItems: 'center', gap: 12,
+          }}>
+            <div style={{ flex: 1, color: 'white', fontSize: 13, fontWeight: 700 }}>
+              {result.risk_level === 'emergency' ? 'EMERGENCY — Call a vet now' : 'HIGH RISK — Call a vet today'}
+            </div>
+            <a
+              href={`tel:${firstVet.phone}`}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: 'white', color: cfg.bg,
+                borderRadius: 'var(--r-md)', padding: '9px 16px',
+                fontWeight: 800, fontSize: 14, textDecoration: 'none', flexShrink: 0,
+              }}
+            >
+              <Phone size={15} /> Call Vet
+            </a>
+          </div>
+        )}
+
         {/* Hero */}
         <div className="triage-result-hero" style={{ background: cfg.bg }}>
           <div className="triage-result-icon"><RiskIcon size={32} color="white" /></div>
