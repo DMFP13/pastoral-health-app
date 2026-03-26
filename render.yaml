@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: pastoral-health-app
+    runtime: python
+    rootDir: .
+    buildCommand: "./build.sh"
+    startCommand: "cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+
+databases:
+  - name: pastoral-health-db
+    databaseName: pastoral_health
+    user: pastoral
+    plan: free

@@ -5,7 +5,10 @@ import type {
   Farmer, CommunityPost, PostComment,
 } from '../types';
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// In production the frontend is served by the same FastAPI server,
+// so relative paths work. In local dev, fall back to localhost:8000.
+const BASE_URL = import.meta.env.VITE_API_URL ||
+  (import.meta.env.DEV ? 'http://localhost:8000' : '');
 
 async function fetchJSON<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, options);

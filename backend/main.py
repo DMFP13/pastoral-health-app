@@ -2,6 +2,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from database import engine, Base, SessionLocal
 import models
 from routes import diseases, vets, suppliers, medicines, animals, events, triage, farmers, posts, upload
@@ -36,6 +37,17 @@ app.include_router(upload.router)
 
 os.makedirs("uploads", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
+# Serve built React frontend if the dist folder exists
+FRONTEND_DIST = os.path.join(os.path.dirname(__file__), "static")
+if os.path.isdir(FRONTEND_DIST):
+    app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIST, "assets")), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def serve_frontend(full_path: str):
+        # Let API routes handle themselves; serve index.html for everything else
+        index = os.path.join(FRONTEND_DIST, "index.html")
+        return FileResponse(index)
 
 
 @app.on_event("startup")
