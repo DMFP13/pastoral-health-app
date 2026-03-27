@@ -1,4 +1,5 @@
 import os
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -8,17 +9,40 @@ import models
 from routes import diseases, vets, suppliers, medicines, animals, events, triage, farmers, posts, upload, google_places, messages
 from seed_data import DISEASES, VETS, SUPPLIERS, MEDICINES, ANIMALS, EVENTS, FARMERS, POSTS
 
+# ── Environment ───────────────────────────────────────────
+APP_ENV = os.getenv("APP_ENV", "development")
+IS_PROD = APP_ENV == "production"
+
+# ── Logging ───────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.WARNING if IS_PROD else logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("pastoral")
+logger.info("Starting in %s mode", APP_ENV)
+
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Pastoral Livestock Health API",
     description="API for pastoral livestock disease identification, vet finder, medicine pricing and supplier locator",
-    version="1.0.0"
+    version="1.0.0",
+    # Hide docs in production
+    docs_url=None if IS_PROD else "/docs",
+    redoc_url=None if IS_PROD else "/redoc",
+    openapi_url=None if IS_PROD else "/openapi.json",
 )
+
+# ── CORS ──────────────────────────────────────────────────
+# In production lock down to the actual deployment origin.
+# ALLOWED_ORIGINS env var accepts comma-separated URLs, e.g.:
+#   ALLOWED_ORIGINS=https://pastoral-health-app.onrender.com
+_origins_env = os.getenv("ALLOWED_ORIGINS", "")
+ALLOW_ORIGINS = [o.strip() for o in _origins_env.split(",") if o.strip()] if IS_PROD else ["*"]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOW_ORIGINS,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -121,4 +145,4 @@ def root():
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok"}
+    return {"status": "ok", "env": APP_ENV}
