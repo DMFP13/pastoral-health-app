@@ -40,6 +40,23 @@ def get_event(event_id: int, db: Session = Depends(get_db)):
     return event
 
 
+@router.post("/bulk", status_code=201)
+def create_events_bulk(events: List[schemas.AnimalEventCreate], db: Session = Depends(get_db)):
+    """Create multiple events at once (used for bulk vaccination)."""
+    created = []
+    errors = []
+    for ev in events:
+        animal = db.query(models.Animal).filter(models.Animal.id == ev.animal_id).first()
+        if not animal:
+            errors.append({"animal_id": ev.animal_id, "error": "Animal not found"})
+            continue
+        db_ev = models.AnimalEvent(**ev.model_dump())
+        db.add(db_ev)
+        created.append(ev.animal_id)
+    db.commit()
+    return {"created": len(created), "errors": errors}
+
+
 @router.post("/", response_model=schemas.AnimalEvent, status_code=201)
 def create_event(event: schemas.AnimalEventCreate, db: Session = Depends(get_db)):
     # Verify animal exists

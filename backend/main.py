@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from database import engine, Base, SessionLocal
 import models
-from routes import diseases, vets, suppliers, medicines, animals, events, triage, farmers, posts, upload
+from routes import diseases, vets, suppliers, medicines, animals, events, triage, farmers, posts, upload, google_places, messages
 from seed_data import DISEASES, VETS, SUPPLIERS, MEDICINES, ANIMALS, EVENTS, FARMERS, POSTS
 
 Base.metadata.create_all(bind=engine)
@@ -34,6 +34,8 @@ app.include_router(triage.router)
 app.include_router(farmers.router)
 app.include_router(posts.router)
 app.include_router(upload.router)
+app.include_router(google_places.router)
+app.include_router(messages.router)
 
 os.makedirs("uploads", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")

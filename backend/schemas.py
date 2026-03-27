@@ -299,3 +299,31 @@ class CommunityPostSummary(CommunityPostBase):
 
     class Config:
         from_attributes = True
+
+
+# ── Direct Messages ───────────────────────────────────────
+class MessageCreate(BaseModel):
+    sender_id: int
+    receiver_id: int
+    body: str = Field(max_length=2000)
+
+
+class MessageOut(BaseModel):
+    id: int
+    sender_id: int
+    receiver_id: int
+    body: str
+    created_at: Optional[datetime] = None
+    read_at: Optional[datetime] = None
+    sender: Optional[Farmer] = None
+    receiver: Optional[Farmer] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ConversationSummary(BaseModel):
+    other_farmer: Farmer
+    last_message: str
+    last_message_at: Optional[datetime] = None
+    unread_count: int = 0

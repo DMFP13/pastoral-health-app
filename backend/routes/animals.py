@@ -1,11 +1,88 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import List, Optional
+from datetime import date, timedelta
 import models
 import schemas
 from database import get_db
 
 router = APIRouter(prefix="/animals", tags=["animals"])
+
+
+@router.get("/stats")
+def animal_stats(db: Session = Depends(get_db)):
+    """Return herd-level health statistics for the dashboard."""
+    today = date.today().isoformat()
+    thirty_ago = (date.today() - timedelta(days=30)).isoformat()
+
+    total = db.query(func.count(models.Animal.id)).scalar() or 0
+
+    needs_attention = (
+        db.query(func.count(func.distinct(models.AnimalEvent.animal_id)))
+        .filter(
+            models.AnimalEvent.risk_level.in_(["high", "emergency"]),
+            models.AnimalEvent.event_date >= thirty_ago,
+        )
+        .scalar() or 0
+    )
+
+    follow_ups_due = (
+        db.query(func.count(func.distinct(models.AnimalEvent.animal_id)))
+        .filter(
+            models.AnimalEvent.follow_up_date.isnot(None),
+            models.AnimalEvent.follow_up_date <= today,
+            models.AnimalEvent.outcome.is_(None),
+        )
+        .scalar() or 0
+    )
+
+    recent_vaccinations = (
+        db.query(func.count(models.AnimalEvent.id))
+        .filter(
+            models.AnimalEvent.event_type == "vaccination",
+            models.AnimalEvent.event_date >= thirty_ago,
+        )
+        .scalar() or 0
+    )
+
+    return {
+        "total": total,
+        "needs_attention": needs_attention,
+        "follow_ups_due": follow_ups_due,
+        "recent_vaccinations": recent_vaccinations,
+    }
+
+
+@router.get("/follow-ups")
+def pending_follow_ups(db: Session = Depends(get_db)):
+    """Return all events where follow_up_date is today or past and outcome is not set."""
+    today = date.today().isoformat()
+    rows = (
+        db.query(models.AnimalEvent, models.Animal)
+        .join(models.Animal, models.AnimalEvent.animal_id == models.Animal.id)
+        .filter(
+            models.AnimalEvent.follow_up_date.isnot(None),
+            models.AnimalEvent.follow_up_date <= today,
+            models.AnimalEvent.outcome.is_(None),
+        )
+        .order_by(models.AnimalEvent.follow_up_date)
+        .all()
+    )
+    return [
+        {
+            "animal_id":   animal.id,
+            "animal_tag":  animal.animal_tag,
+            "species":     animal.species,
+            "owner_name":  animal.owner_name,
+            "event_id":    event.id,
+            "event_type":  event.event_type,
+            "event_date":  event.event_date,
+            "follow_up_date": event.follow_up_date,
+            "symptoms":    event.symptoms,
+        }
+        for event, animal in rows
+    ]
 
 
 @router.get("/", response_model=List[schemas.AnimalSummary])

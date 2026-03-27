@@ -11,14 +11,18 @@ import { WeatherAlerts }     from './components/WeatherAlerts';
 import { EventLogger }       from './components/EventLogger';
 import { CommunityWall }     from './components/CommunityWall';
 import { FarmerProfile }     from './components/FarmerProfile';
-import { FarmerOnboarding }  from './components/FarmerOnboarding';
-import type { AnimalEvent, Farmer, Language, UserLocation, PostCategory } from './types/index';
+import { FarmerOnboarding }      from './components/FarmerOnboarding';
+import { SetFarmingLocation }    from './components/SetFarmingLocation';
+import { BulkVaccination }       from './components/BulkVaccination';
+import { DirectMessages }        from './components/DirectMessages';
+import type { Animal, AnimalEvent, Farmer, Language, UserLocation, PostCategory } from './types/index';
 import { getStoredLang }     from './i18n';
 import { getSavedLocation }  from './utils/location';
+import { flushQueue, pendingCount } from './utils/offlineQueue';
 import './App.css';
 
 type Tab        = 'home' | 'animals' | 'check' | 'community' | 'more';
-type MoreScreen = 'diseases' | 'medicines' | 'suppliers' | 'alerts' | 'vets' | 'profile';
+type MoreScreen = 'diseases' | 'medicines' | 'suppliers' | 'alerts' | 'vets' | 'profile' | 'bulk_vaccination' | 'messages';
 
 function useOnline() {
   const [online, setOnline] = useState(navigator.onLine);
@@ -33,12 +37,14 @@ function useOnline() {
 }
 
 const MORE_TILES: { id: MoreScreen; label: string; desc: string; color: string; bg: string }[] = [
-  { id: 'diseases',  label: 'Diseases',   desc: 'Identify diseases',    color: '#DC2626', bg: '#FEF2F2' },
-  { id: 'medicines', label: 'Medicines',  desc: 'Prices & usage',       color: '#0369A1', bg: '#EFF6FF' },
-  { id: 'suppliers', label: 'Suppliers',  desc: 'Buy medicines nearby', color: '#D97706', bg: '#FFFBEB' },
-  { id: 'alerts',    label: 'Alerts',     desc: 'Seasonal risks',       color: '#7C3AED', bg: '#F5F3FF' },
-  { id: 'vets',      label: 'Vets',       desc: 'Find a vet near you',  color: '#2D6A4F', bg: '#D8F3DC' },
-  { id: 'profile',   label: 'My Profile', desc: 'Your details',         color: '#52525B', bg: '#F4F4F5' },
+  { id: 'diseases',         label: 'Diseases',         desc: 'Identify diseases',      color: '#DC2626', bg: '#FEF2F2' },
+  { id: 'medicines',        label: 'Medicines',        desc: 'Prices & usage',         color: '#0369A1', bg: '#EFF6FF' },
+  { id: 'suppliers',        label: 'Suppliers',        desc: 'Buy medicines nearby',   color: '#D97706', bg: '#FFFBEB' },
+  { id: 'alerts',           label: 'Alerts',           desc: 'Seasonal risks',         color: '#7C3AED', bg: '#F5F3FF' },
+  { id: 'vets',             label: 'Vets',             desc: 'Find a vet near you',    color: '#2D6A4F', bg: '#D8F3DC' },
+  { id: 'bulk_vaccination', label: 'Bulk Vaccination', desc: 'Vaccinate whole herd',   color: '#0891B2', bg: '#ECFEFF' },
+  { id: 'messages',         label: 'Messages',         desc: 'Chat with farmers',      color: '#2563EB', bg: '#EFF6FF' },
+  { id: 'profile',          label: 'My Profile',       desc: 'Your details',           color: '#52525B', bg: '#F4F4F5' },
 ];
 
 function getStoredFarmer(): { id: number; name: string } | null {
@@ -61,8 +67,26 @@ export default function App() {
 
   useEffect(() => { document.documentElement.lang = lang; }, [lang]);
 
-  const [location, setLocation] = useState<UserLocation | null>(getSavedLocation);
-  const [communityCompose, setCommunityCompose] = useState<PostCategory | null>(null);
+  // Auto-sync offline queue when connection returns
+  useEffect(() => {
+    const handleOnline = async () => {
+      const n = await flushQueue();
+      if (n > 0) {
+        setSyncedCount(n);
+        setPendingSyncCount(pendingCount());
+        setTimeout(() => setSyncedCount(0), 5000);
+      }
+    };
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, []);
+
+  const [location,             setLocation]             = useState<UserLocation | null>(getSavedLocation);
+  const [showSetLocation,      setShowSetLocation]      = useState(false);
+  const [communityCompose,     setCommunityCompose]     = useState<PostCategory | null>(null);
+  const [communityPrefillBody, setCommunityPrefillBody] = useState<string | undefined>();
+  const [syncedCount,          setSyncedCount]          = useState(0);
+  const [pendingSyncCount,     setPendingSyncCount]     = useState(pendingCount);
 
   const [logPrefillAnimalId,  setLogPrefillAnimalId]  = useState<number | undefined>();
   const [logPrefillAnimalTag, setLogPrefillAnimalTag] = useState<string | undefined>();
@@ -74,8 +98,18 @@ export default function App() {
     setTab(t);
     setMoreScreen(null);
     setShowLog(false);
-    if (t !== 'community') setCommunityCompose(null);
+    if (t !== 'community') { setCommunityCompose(null); setCommunityPrefillBody(undefined); }
     if (t !== 'animals')   setDetailAnimalId(undefined);
+  };
+
+  const handleShareAnimal = (animal: Animal) => {
+    const body = `Animal: ${animal.animal_tag} (${animal.species}${animal.breed ? ' · ' + animal.breed : ''})\nOwner: ${animal.owner_name}\n\n`;
+    setCommunityPrefillBody(body);
+    setCommunityCompose('disease_alert');
+    setTab('community');
+    setMoreScreen(null);
+    setShowLog(false);
+    setDetailAnimalId(undefined);
   };
 
   const openLog = (animalId?: number, animalTag?: string, data?: Partial<AnimalEvent>) => {
@@ -103,6 +137,11 @@ export default function App() {
     setLocation(loc);
   };
 
+  const handleSetLocationSave = (loc: UserLocation) => {
+    setLocation(loc);
+    setShowSetLocation(false);
+  };
+
   const handleFarmerProfileSaved = (farmer: Farmer) => {
     localStorage.setItem('pastoral_farmer_name', farmer.name);
     setFarmerId(farmer.id);
@@ -117,6 +156,21 @@ export default function App() {
           <FarmerOnboarding
             onComplete={handleOnboardingComplete}
             onSkip={handleOnboardingSkip}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  /* ── Set farming location overlay ────────────────────── */
+  if (showSetLocation) {
+    return (
+      <div className="app">
+        <div className="app-main">
+          <SetFarmingLocation
+            current={location}
+            onSave={handleSetLocationSave}
+            onBack={() => setShowSetLocation(false)}
           />
         </div>
       </div>
@@ -146,8 +200,20 @@ export default function App() {
     if (moreScreen === 'diseases')  return <DiseaseChecker />;
     if (moreScreen === 'medicines') return <PriceComparison />;
     if (moreScreen === 'suppliers') return <SupplierLocator location={location!} />;
-    if (moreScreen === 'alerts')    return <WeatherAlerts />;
-    if (moreScreen === 'vets')      return <VetFinder location={location!} />;
+    if (moreScreen === 'alerts')    return <WeatherAlerts location={location} />;
+    if (moreScreen === 'vets')             return <VetFinder location={location!} />;
+    if (moreScreen === 'bulk_vaccination') return <BulkVaccination onBack={() => setMoreScreen(null)} />;
+    if (moreScreen === 'messages') {
+      if (!farmerId) {
+        return (
+          <div className="empty-state">
+            <div className="empty-title">Sign in required</div>
+            <div className="empty-body">Create a farmer profile to send and receive messages.</div>
+          </div>
+        );
+      }
+      return <DirectMessages farmerId={farmerId} onBack={() => setMoreScreen(null)} />;
+    }
     if (moreScreen === 'profile') {
       return (
         <FarmerProfile
@@ -198,7 +264,7 @@ export default function App() {
             onAnimals={() => navigate('animals')}
             onCheck={() => navigate('check')}
             onMore={() => navigate('more')}
-            onEditLocation={() => setLocation(null)}
+            onEditLocation={() => setShowSetLocation(true)}
           />
         );
 
@@ -208,6 +274,7 @@ export default function App() {
             <AnimalRegistry
               onLogEvent={(id, tag) => openLog(id, tag)}
               onCheckAnimal={() => navigate('check')}
+              onShare={handleShareAnimal}
               initialId={detailAnimalId}
             />
           </div>
@@ -227,6 +294,7 @@ export default function App() {
             location={location!}
             farmerId={farmerId}
             initialCompose={communityCompose}
+            prefillBody={communityPrefillBody}
           />
         );
 
@@ -242,7 +310,17 @@ export default function App() {
 
   return (
     <div className="app">
-      {!online && <div className="offline-banner">No connection — working offline</div>}
+      {!online && <div className="offline-banner">No connection — events will be saved offline</div>}
+      {online && pendingSyncCount > 0 && syncedCount === 0 && (
+        <div className="offline-banner" style={{ background: '#D97706' }}>
+          {pendingSyncCount} offline event{pendingSyncCount !== 1 ? 's' : ''} pending sync
+        </div>
+      )}
+      {syncedCount > 0 && (
+        <div className="offline-banner" style={{ background: 'var(--brand)' }}>
+          {syncedCount} offline event{syncedCount !== 1 ? 's' : ''} synced
+        </div>
+      )}
 
       {/* Back bar for sub-screens */}
       {isMoreSub && (

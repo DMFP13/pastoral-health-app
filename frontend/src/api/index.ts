@@ -5,6 +5,24 @@ import type {
   Farmer, CommunityPost, PostComment,
 } from '../types';
 
+export interface MessageOut {
+  id: number;
+  sender_id: number;
+  receiver_id: number;
+  body: string;
+  created_at?: string;
+  read_at?: string | null;
+  sender?: Farmer;
+  receiver?: Farmer;
+}
+
+export interface ConversationSummary {
+  other_farmer: Farmer;
+  last_message: string;
+  last_message_at?: string;
+  unread_count: number;
+}
+
 // In production the frontend is served by the same FastAPI server,
 // so relative paths work. In local dev, fall back to localhost:8000.
 const BASE_URL = import.meta.env.VITE_API_URL ||
@@ -44,6 +62,18 @@ function qs(params: Record<string, string | undefined>): string {
   }
   const s = p.toString();
   return s ? `?${s}` : '';
+}
+
+export interface GooglePlace {
+  place_id:           string;
+  name:               string;
+  address:            string;
+  rating?:            number;
+  user_ratings_total?: number;
+  lat?:               number;
+  lng?:               number;
+  open_now?:          boolean;
+  maps_url:           string;
 }
 
 export const api = {
@@ -93,6 +123,15 @@ export const api = {
   },
 
   animals: {
+    stats: (): Promise<{ total: number; needs_attention: number; follow_ups_due: number; recent_vaccinations: number }> =>
+      fetchJSON('/animals/stats'),
+
+    followUps: (): Promise<Array<{
+      animal_id: number; animal_tag: string; species: string; owner_name: string;
+      event_id: number; event_type: string; event_date: string;
+      follow_up_date: string; symptoms?: string;
+    }>> => fetchJSON('/animals/follow-ups'),
+
     list: (params?: { country?: string; species?: string; search?: string }): Promise<Animal[]> => {
       const key = `animals_${JSON.stringify(params || {})}`;
       return fetchWithFallback<Animal[]>(key, `/animals/${qs(params || {})}`, 300_000);
@@ -127,6 +166,13 @@ export const api = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       }),
+
+    createBulk: (events: Omit<AnimalEvent, 'id' | 'created_at'>[]): Promise<{ created: number; errors: unknown[] }> =>
+      fetchJSON('/events/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(events),
+      }),
     delete: (id: number): Promise<void> =>
       fetchJSON<void>(`/events/${id}`, { method: 'DELETE' }),
   },
@@ -157,6 +203,39 @@ export const api = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       }),
+  },
+
+  places: {
+    vets: (params: { country?: string; state?: string; lat?: number; lng?: number }): Promise<GooglePlace[]> =>
+      fetchJSON<GooglePlace[]>(`/places/vets${qs({
+        country: params.country,
+        state:   params.state,
+        lat:     params.lat?.toString(),
+        lng:     params.lng?.toString(),
+      })}`).catch(() => []),
+
+    suppliers: (params: { country?: string; state?: string; lat?: number; lng?: number }): Promise<GooglePlace[]> =>
+      fetchJSON<GooglePlace[]>(`/places/suppliers${qs({
+        country: params.country,
+        state:   params.state,
+        lat:     params.lat?.toString(),
+        lng:     params.lng?.toString(),
+      })}`).catch(() => []),
+  },
+
+  messages: {
+    conversations: (farmerId: number): Promise<ConversationSummary[]> =>
+      fetchJSON<ConversationSummary[]>(`/messages/conversations?farmer_id=${farmerId}`),
+    thread: (farmerId: number, otherId: number): Promise<MessageOut[]> =>
+      fetchJSON<MessageOut[]>(`/messages/thread?farmer_id=${farmerId}&other_id=${otherId}`),
+    send: (payload: { sender_id: number; receiver_id: number; body: string }): Promise<MessageOut> =>
+      fetchJSON<MessageOut>('/messages/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }),
+    markRead: (farmerId: number, otherId: number): Promise<void> =>
+      fetchJSON<void>(`/messages/read?farmer_id=${farmerId}&other_id=${otherId}`, { method: 'PUT' }),
   },
 
   posts: {

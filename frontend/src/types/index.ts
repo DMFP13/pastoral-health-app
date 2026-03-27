@@ -84,6 +84,8 @@ export interface UserLocation {
   lga?: string;
   state?: string;
   country?: string;
+  /** How this location was set — used to show the right label in the UI */
+  source?: 'manual' | 'gps' | 'default';
 }
 
 export interface TriageInput {

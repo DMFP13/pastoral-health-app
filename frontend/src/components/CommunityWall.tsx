@@ -10,6 +10,7 @@ import { api } from '../api';
 import type { CommunityPost, PostCategory, UserLocation } from '../types';
 import { getSavedLocation, locationLabel } from '../utils/location';
 import { PhotoCapture } from './PhotoCapture';
+import { MessageFarmerButton } from './DirectMessages';
 
 /* ── Config ─────────────────────────────────────────────── */
 type ChipKey = 'nearby' | PostCategory | 'all';
@@ -85,12 +86,13 @@ interface Props {
   farmerId?:       number;
   location?:       UserLocation;
   initialCompose?: PostCategory | null;
+  prefillBody?:    string;
 }
 
 /* ══════════════════════════════════════════════════════════
    MAIN COMPONENT
    ══════════════════════════════════════════════════════════ */
-export function CommunityWall({ farmerId, location, initialCompose }: Props) {
+export function CommunityWall({ farmerId, location, initialCompose, prefillBody }: Props) {
   const loc = location ?? getSavedLocation() ?? {};
 
   const [chip,        setChip]        = useState<ChipKey>('nearby');
@@ -102,7 +104,7 @@ export function CommunityWall({ farmerId, location, initialCompose }: Props) {
 
   // Compose state
   const [compCat,     setCompCat]     = useState<PostCategory>(initialCompose ?? 'advice');
-  const [compBody,    setCompBody]    = useState('');
+  const [compBody,    setCompBody]    = useState(prefillBody ?? '');
   const [compImage,   setCompImage]   = useState('');
   const [submitting,  setSubmitting]  = useState(false);
   const [submitErr,   setSubmitErr]   = useState('');
@@ -113,8 +115,12 @@ export function CommunityWall({ farmerId, location, initialCompose }: Props) {
   const [commentError,   setCommentError]   = useState('');
 
   useEffect(() => {
-    if (initialCompose) { setCompCat(initialCompose); setView('compose'); }
-  }, [initialCompose]);
+    if (initialCompose) {
+      setCompCat(initialCompose);
+      setView('compose');
+      if (prefillBody) setCompBody(prefillBody);
+    }
+  }, [initialCompose, prefillBody]);
 
   const loadFeed = useCallback(async () => {
     setLoading(true);
@@ -234,6 +240,13 @@ export function CommunityWall({ farmerId, location, initialCompose }: Props) {
             </div>
           </div>
         </div>
+
+        {/* Message farmer button */}
+        {farmerId && detailPost.farmer && detailPost.farmer.id !== farmerId && (
+          <div style={{ padding: '8px 16px' }}>
+            <MessageFarmerButton fromFarmerId={farmerId} toFarmer={detailPost.farmer} />
+          </div>
+        )}
 
         <div className="section-label">
           Comments ({detailPost.comments?.length ?? detailPost.comment_count ?? 0})

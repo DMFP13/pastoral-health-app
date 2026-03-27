@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Stethoscope, Beef, Megaphone, Phone,
   MapPin, ChevronRight, AlertTriangle, MessageCircle,
-  MoreHorizontal, Clock, WifiOff,
+  MoreHorizontal, Clock, WifiOff, Syringe,
 } from 'lucide-react';
 import { api } from '../api';
 import type { CommunityPost, UserLocation, PostCategory } from '../types/index';
@@ -45,6 +45,13 @@ function relTime(d?: string) {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+interface HerdStats {
+  total: number;
+  needs_attention: number;
+  follow_ups_due: number;
+  recent_vaccinations: number;
+}
+
 interface Props {
   location:       UserLocation;
   farmerName?:    string;
@@ -63,9 +70,11 @@ export function HomeScreen({
   location, farmerName, onCompose, onSeeAll, onOpenPost,
   onVets, onCheck, onAnimals, onEditLocation,
 }: Props) {
-  const [posts,   setPosts]   = useState<CommunityPost[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [offline, setOffline] = useState(false);
+  const [posts,      setPosts]      = useState<CommunityPost[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [offline,    setOffline]    = useState(false);
+  const [herdStats,  setHerdStats]  = useState<HerdStats | null>(null);
+  const [followUps,  setFollowUps]  = useState<Array<{ animal_id: number; animal_tag: string; species: string; event_type: string; follow_up_date: string }>>([]);
 
   const seasonal = getSeasonalRisk(location);
   const locLabel = locationLabel(location) || 'Set location';
@@ -90,6 +99,11 @@ export function HomeScreen({
   }, [location.country, location.state]);
 
   useEffect(() => { loadFeed(); }, [loadFeed]);
+
+  useEffect(() => {
+    api.animals.stats().then(setHerdStats).catch(() => {});
+    api.animals.followUps().then(setFollowUps).catch(() => {});
+  }, []);
 
   /* ── Primary action config ── */
   const ACTIONS = [
@@ -154,6 +168,107 @@ export function HomeScreen({
           <MapPin size={12} /> {locLabel}
         </button>
       </div>
+
+      {/* ── Herd summary strip ── */}
+      {herdStats !== null && herdStats.total > 0 && (
+        <div style={{
+          margin: '12px 16px 0',
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--r-xl)',
+          padding: '14px 16px',
+          display: 'flex', alignItems: 'center', gap: 0,
+        }}>
+          {/* Total animals */}
+          <div
+            style={{ flex: 1, textAlign: 'center', cursor: 'pointer' }}
+            onClick={onAnimals}
+          >
+            <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--brand)', lineHeight: 1 }}>{herdStats.total}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, fontWeight: 600 }}>Animals</div>
+          </div>
+          <div style={{ width: 1, background: 'var(--border)', alignSelf: 'stretch' }} />
+          {/* Needs attention */}
+          <div
+            style={{ flex: 1, textAlign: 'center', cursor: herdStats.needs_attention > 0 ? 'pointer' : 'default' }}
+            onClick={herdStats.needs_attention > 0 ? onAnimals : undefined}
+          >
+            <div style={{
+              fontSize: 22, fontWeight: 800, lineHeight: 1,
+              color: herdStats.needs_attention > 0 ? '#DC2626' : 'var(--text-muted)',
+            }}>
+              {herdStats.needs_attention}
+            </div>
+            <div style={{ fontSize: 11, color: herdStats.needs_attention > 0 ? '#DC2626' : 'var(--text-muted)', marginTop: 2, fontWeight: 600 }}>
+              {herdStats.needs_attention === 1 ? 'Alert' : 'Alerts'}
+            </div>
+          </div>
+          <div style={{ width: 1, background: 'var(--border)', alignSelf: 'stretch' }} />
+          {/* Follow-ups due */}
+          <div
+            style={{ flex: 1, textAlign: 'center', cursor: herdStats.follow_ups_due > 0 ? 'pointer' : 'default' }}
+            onClick={herdStats.follow_ups_due > 0 ? onAnimals : undefined}
+          >
+            <div style={{
+              fontSize: 22, fontWeight: 800, lineHeight: 1,
+              color: herdStats.follow_ups_due > 0 ? '#D97706' : 'var(--text-muted)',
+            }}>
+              {herdStats.follow_ups_due}
+            </div>
+            <div style={{ fontSize: 11, color: herdStats.follow_ups_due > 0 ? '#D97706' : 'var(--text-muted)', marginTop: 2, fontWeight: 600 }}>
+              Follow-ups
+            </div>
+          </div>
+          <div style={{ width: 1, background: 'var(--border)', alignSelf: 'stretch' }} />
+          {/* Recent vaccinations */}
+          <div style={{ flex: 1, textAlign: 'center' }}>
+            <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--brand)', lineHeight: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 3 }}>
+              <Syringe size={16} color="var(--brand)" />
+              {herdStats.recent_vaccinations}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, fontWeight: 600 }}>Vaccines/30d</div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Follow-up reminders ── */}
+      {followUps.length > 0 && (
+        <div style={{ margin: '12px 16px 0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            <AlertTriangle size={14} color="#DC2626" />
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#DC2626' }}>
+              {followUps.length} follow-up{followUps.length !== 1 ? 's' : ''} overdue
+            </span>
+          </div>
+          {followUps.slice(0, 3).map(f => (
+            <div
+              key={f.animal_id + f.follow_up_date}
+              onClick={onAnimals}
+              style={{
+                background: '#FEF2F2', border: '1px solid #FECACA',
+                borderRadius: 'var(--r-md)', padding: '10px 12px',
+                marginBottom: 6, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 10,
+              }}
+            >
+              <AlertTriangle size={14} color="#DC2626" style={{ flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#DC2626' }}>{f.animal_tag}</span>
+                <span style={{ fontSize: 12, color: '#7F1D1D', marginLeft: 6 }}>
+                  {f.event_type} · due {f.follow_up_date}
+                </span>
+              </div>
+              <span style={{ fontSize: 12, color: '#DC2626' }}>›</span>
+            </div>
+          ))}
+          {followUps.length > 3 && (
+            <button onClick={onAnimals}
+              style={{ fontSize: 12, color: '#DC2626', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
+              +{followUps.length - 3} more — tap to view
+            </button>
+          )}
+        </div>
+      )}
 
       {/* ── 4 action buttons ── */}
       <div style={{

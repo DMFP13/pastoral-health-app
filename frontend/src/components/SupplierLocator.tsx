@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { MapPin, Search, ExternalLink, ShoppingCart, Package, Syringe, Truck, Globe } from 'lucide-react';
 import { api } from '../api';
+import type { GooglePlace } from '../api';
 import type { Supplier, UserLocation } from '../types/index';
 import { getSavedLocation } from '../utils/location';
+import { GooglePlaceCard } from './VetFinder';
 
 /* ── Online store catalogue ─────────────────────────────── */
 interface OnlineStore {
@@ -108,26 +110,37 @@ export function SupplierLocator({ location }: Props) {
     loc.state ? 'state' : loc.country ? 'country' : 'all'
   );
 
+  /* ── Google Places suppliers ── */
+  const [googleSuppliers,  setGoogleSuppliers]  = useState<GooglePlace[]>([]);
+  const [googleLoading,    setGoogleLoading]    = useState(false);
+
   /* ── Online stores filter ── */
   const [onlineSearch, setOnlineSearch] = useState('');
 
   useEffect(() => {
     if (viewTab !== 'local') return;
     setLoading(true);
-    const stateFilter   = scope === 'state' ? (loc.state ?? undefined) : undefined;
-    const countryFilter = scope === 'all'   ? (country || undefined)
+    const stateFilter   = scope === 'state'   ? (loc.state   ?? undefined) : undefined;
+    const countryFilter = scope === 'all'     ? (country     || undefined)
                         : (country || loc.country || undefined);
-    api.suppliers.list(countryFilter, search || undefined)
-      .then(data => {
-        if (stateFilter) {
-          setSuppliers(data.filter(s => s.location.toLowerCase().includes(stateFilter.toLowerCase())));
-        } else {
-          setSuppliers(data);
-        }
-      })
+    api.suppliers.list(countryFilter, search || undefined, stateFilter)
+      .then(setSuppliers)
       .catch(() => setError('Could not load suppliers.'))
       .finally(() => setLoading(false));
   }, [search, country, scope, loc.state, loc.country, viewTab]);
+
+  useEffect(() => {
+    if (!loc.country && !loc.state) return;
+    setGoogleLoading(true);
+    api.places.suppliers({
+      country: loc.country ?? undefined,
+      state:   loc.state   ?? undefined,
+      lat:     loc.lat,
+      lng:     loc.lng,
+    })
+      .then(setGoogleSuppliers)
+      .finally(() => setGoogleLoading(false));
+  }, [loc.country, loc.state, loc.lat, loc.lng]);
 
   /* Filter online stores by user country + search text */
   const userCountry = loc.country ?? '';
@@ -289,6 +302,31 @@ export function SupplierLocator({ location }: Props) {
             </div>
           )}
         </>
+      )}
+
+      {/* ── Google Places suppliers (shown inside local tab) ── */}
+      {viewTab === 'local' && (googleSuppliers.length > 0 || googleLoading) && (
+        <div style={{ marginTop: 20, marginBottom: 8 }}>
+          <div style={{ padding: '0 16px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Nearby — via Google</div>
+            <div style={{
+              fontSize: 10, fontWeight: 700,
+              background: '#4285F4', color: 'white',
+              borderRadius: 'var(--r-full)', padding: '2px 8px',
+            }}>Google</div>
+          </div>
+          {googleLoading ? (
+            <div style={{ padding: '12px 0', display: 'flex', justifyContent: 'center' }}>
+              <div className="loading-spinner" />
+            </div>
+          ) : (
+            <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {googleSuppliers.map(p => (
+                <GooglePlaceCard key={p.place_id} place={p} type="supplier" />
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {/* ── ONLINE TAB ── */}

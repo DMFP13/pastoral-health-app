@@ -1,7 +1,27 @@
 import type { UserLocation } from '../types';
 
-const LOC_KEY = 'pastoral_location';
-const GPS_TIMEOUT_MS = 8000;
+const LOC_KEY         = 'pastoral_location';
+const FARM_LOC_KEY    = 'pastoral_farming_location';
+const GPS_TIMEOUT_MS  = 8000;
+
+export const NIGERIAN_STATES = [
+  'Abia','Adamawa','Akwa Ibom','Anambra','Bauchi','Bayelsa','Benue','Borno',
+  'Cross River','Delta','Ebonyi','Edo','Ekiti','Enugu','FCT - Abuja',
+  'Gombe','Imo','Jigawa','Kaduna','Kano','Katsina','Kebbi','Kogi',
+  'Kwara','Lagos','Nasarawa','Niger','Ogun','Ondo','Osun','Oyo',
+  'Plateau','Rivers','Sokoto','Taraba','Yobe','Zamfara',
+] as const;
+
+export const KENYAN_COUNTIES = [
+  'Baringo','Bomet','Bungoma','Busia','Elgeyo-Marakwet','Embu',
+  'Garissa','Homa Bay','Isiolo','Kajiado','Kakamega','Kericho',
+  'Kiambu','Kilifi','Kirinyaga','Kisii','Kisumu','Kitui','Kwale',
+  'Laikipia','Lamu','Machakos','Makueni','Mandera','Marsabit',
+  'Meru','Migori','Mombasa','Murang\'a','Nairobi','Nakuru','Nandi',
+  'Narok','Nyamira','Nyandarua','Nyeri','Samburu','Siaya',
+  'Taita-Taveta','Tana River','Tharaka-Nithi','Trans Nzoia',
+  'Turkana','Uasin Gishu','Vihiga','Wajir','West Pokot',
+] as const;
 
 export function getSavedLocation(): UserLocation | null {
   const raw = localStorage.getItem(LOC_KEY);
@@ -15,6 +35,24 @@ export function saveLocation(loc: UserLocation): void {
 
 export function clearLocation(): void {
   localStorage.removeItem(LOC_KEY);
+}
+
+/**
+ * Farming location — where the animals actually are.
+ * Falls back to the general saved location for existing users.
+ */
+export function getFarmingLocation(): UserLocation | null {
+  const raw = localStorage.getItem(FARM_LOC_KEY);
+  if (raw) {
+    try { return JSON.parse(raw) as UserLocation; } catch { /* fall through */ }
+  }
+  return getSavedLocation();
+}
+
+export function saveFarmingLocation(loc: UserLocation): void {
+  localStorage.setItem(FARM_LOC_KEY, JSON.stringify(loc));
+  // Also keep the legacy key in sync so existing checks still work.
+  saveLocation(loc);
 }
 
 /** Attempt browser GPS. Resolves with coords or null on failure/timeout. */

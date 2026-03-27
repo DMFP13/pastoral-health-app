@@ -120,6 +120,8 @@ class Farmer(Base):
 
     posts = relationship("CommunityPost", back_populates="farmer", cascade="all, delete-orphan")
     comments = relationship("PostComment", back_populates="farmer", cascade="all, delete-orphan")
+    sent_messages = relationship("Message", foreign_keys="Message.sender_id", back_populates="sender", cascade="all, delete-orphan")
+    received_messages = relationship("Message", foreign_keys="Message.receiver_id", back_populates="receiver", cascade="all, delete-orphan")
 
 
 class CommunityPost(Base):
@@ -138,6 +140,20 @@ class CommunityPost(Base):
 
     farmer = relationship("Farmer", back_populates="posts")
     comments = relationship("PostComment", back_populates="post", cascade="all, delete-orphan")
+
+
+class Message(Base):
+    __tablename__ = "messages"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    sender_id   = Column(Integer, ForeignKey("farmers.id"), nullable=False)
+    receiver_id = Column(Integer, ForeignKey("farmers.id"), nullable=False)
+    body        = Column(Text, nullable=False)
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+    read_at     = Column(DateTime(timezone=True), nullable=True)
+
+    sender   = relationship("Farmer", foreign_keys=[sender_id], back_populates="sent_messages")
+    receiver = relationship("Farmer", foreign_keys=[receiver_id], back_populates="received_messages")
 
 
 class PostComment(Base):
